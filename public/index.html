@@ -159,6 +159,7 @@
       display: block;
       height: 150px;
       width: auto;
+      transition: opacity 0.5s ease;
     }
     #waifu-widget .placeholder {
       font-size: 2rem;
@@ -574,24 +575,34 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
       const objectURL = URL.createObjectURL(blob);
       const img = document.createElement('img');
       img.alt = 'anime waifu';
+      img.style.opacity = '0';
       img.src = objectURL;
       img.addEventListener('load', async () => {
         if (currentObjectURL) URL.revokeObjectURL(currentObjectURL);
         currentObjectURL = objectURL;
         widget.innerHTML = '';
         widget.appendChild(img);
+        // Fade in the original image after the browser has painted it
+        setTimeout(() => { img.style.opacity = '1'; }, 16);
         // Remove background — pass the blob directly so the WASM worker can read it
         try {
           const { removeBackground } = await import(CDN + 'index.js');
           const noBgBlob = await removeBackground(blob, { publicPath: CDN });
           const noBgURL = URL.createObjectURL(noBgBlob);
+          // Fade out, swap src, then fade back in once the new image loads
+          img.style.opacity = '0';
+          await new Promise(r => setTimeout(r, 500));
           URL.revokeObjectURL(currentObjectURL);
           currentObjectURL = noBgURL;
           img.src = noBgURL;
-        } catch (_) { /* keep original image if removal fails */ }
+          img.addEventListener('load', () => { img.style.opacity = '1'; }, { once: true });
+        } catch (err) {
+          console.warn('Background removal failed:', err);
+          // keep original image
+        }
       }, { once: true });
       img.addEventListener('error', () => URL.revokeObjectURL(objectURL), { once: true });
-    } catch (_) {/* network blocked — keep placeholder */}
+    } catch (err) { console.warn('Waifu fetch failed:', err); /* keep placeholder */ }
   }
 
   widget.addEventListener('click', () => showToast('(＾▽＾) kawaii~'));
