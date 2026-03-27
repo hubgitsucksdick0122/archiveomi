@@ -132,17 +132,7 @@ app.delete('/api/files/:name(*)', async (req, res) => {
   }
 });
 
-// ── Waifu proxy + background removal ──────────────────────────────────────
-// Cache the dynamic ESM import so the ONNX models are only initialised once.
-let _removeBackground;
-async function getRemoveBackground() {
-  if (!_removeBackground) {
-    const mod = await import('@imgly/background-removal-node');
-    _removeBackground = mod.removeBackground;
-  }
-  return _removeBackground;
-}
-
+// ── Waifu proxy ────────────────────────────────────────────────────────────
 app.get('/api/waifu', async (_req, res) => {
   try {
     const apiRes = await fetch('https://api.waifu.pics/sfw/waifu');
@@ -150,15 +140,14 @@ app.get('/api/waifu', async (_req, res) => {
     const { url } = await apiRes.json();
     if (!url) return res.status(502).json({ error: 'No image URL from waifu.pics' });
 
-    const removeBackground = await getRemoveBackground();
-    const blob = await removeBackground(url);
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) return res.status(502).json({ error: 'Failed to fetch image' });
 
-    const buf = Buffer.from(await blob.arrayBuffer());
-    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Type', imgRes.headers.get('content-type') || 'image/jpeg');
     res.setHeader('Cache-Control', 'no-store');
-    res.send(buf);
+    imgRes.body.pipe(res);
   } catch (err) {
-    console.error('waifu bg-remove error', err.message);
+    console.error('waifu proxy error', err.message);
     res.status(500).json({ error: err.message });
   }
 });
