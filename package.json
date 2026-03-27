@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.9.0",
+    "@imgly/background-removal-node": "^1.4.5",
     "express": "^4.19.2",
     "multer": "^2.1.1"
   }

@@ -132,6 +132,37 @@ app.delete('/api/files/:name(*)', async (req, res) => {
   }
 });
 
+// ── Waifu proxy + background removal ──────────────────────────────────────
+// Cache the dynamic ESM import so the ONNX models are only initialised once.
+let _removeBackground;
+async function getRemoveBackground() {
+  if (!_removeBackground) {
+    const mod = await import('@imgly/background-removal-node');
+    _removeBackground = mod.removeBackground;
+  }
+  return _removeBackground;
+}
+
+app.get('/api/waifu', async (_req, res) => {
+  try {
+    const apiRes = await fetch('https://api.waifu.pics/sfw/waifu');
+    if (!apiRes.ok) return res.status(502).json({ error: 'waifu.pics unavailable' });
+    const { url } = await apiRes.json();
+    if (!url) return res.status(502).json({ error: 'No image URL from waifu.pics' });
+
+    const removeBackground = await getRemoveBackground();
+    const blob = await removeBackground(url);
+
+    const buf = Buffer.from(await blob.arrayBuffer());
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buf);
+  } catch (err) {
+    console.error('waifu bg-remove error', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Start ──────────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, () => {
