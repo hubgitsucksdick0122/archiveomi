@@ -560,10 +560,11 @@ mClose.addEventListener('click', closeModal);
 overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-/* ── Waifu widget — background-free image via /api/waifu ──── */
+/* ── Waifu widget — auto background removal via WebAssembly ── */
 (function () {
   const widget = $('waifu-widget');
   let currentObjectURL = null;
+  const CDN = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/browser/';
 
   async function loadWaifu() {
     try {
@@ -574,13 +575,22 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
       const img = document.createElement('img');
       img.alt = 'anime waifu';
       img.src = objectURL;
-      img.addEventListener('load', () => {
+      img.addEventListener('load', async () => {
         if (currentObjectURL) URL.revokeObjectURL(currentObjectURL);
         currentObjectURL = objectURL;
         widget.innerHTML = '';
         widget.appendChild(img);
-      });
-      img.addEventListener('error', () => URL.revokeObjectURL(objectURL));
+        // Remove background automatically — swap src in-place when done
+        try {
+          const { removeBackground } = await import(CDN + 'index.js');
+          const noBgBlob = await removeBackground(objectURL, { publicPath: CDN });
+          const noBgURL = URL.createObjectURL(noBgBlob);
+          img.src = noBgURL;
+          URL.revokeObjectURL(currentObjectURL);
+          currentObjectURL = noBgURL;
+        } catch (_) { /* keep original image if removal fails */ }
+      }, { once: true });
+      img.addEventListener('error', () => URL.revokeObjectURL(objectURL), { once: true });
     } catch (_) {/* network blocked — keep placeholder */}
   }
 
