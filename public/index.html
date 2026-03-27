@@ -580,24 +580,21 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
         currentObjectURL = objectURL;
         widget.innerHTML = '';
         widget.appendChild(img);
-        // Remove background automatically — swap src in-place when done
+        // Remove background — pass the blob directly so the WASM worker can read it
         try {
           const { removeBackground } = await import(CDN + 'index.js');
-          const noBgBlob = await removeBackground(objectURL, { publicPath: CDN });
+          const noBgBlob = await removeBackground(blob, { publicPath: CDN });
           const noBgURL = URL.createObjectURL(noBgBlob);
-          img.src = noBgURL;
           URL.revokeObjectURL(currentObjectURL);
           currentObjectURL = noBgURL;
+          img.src = noBgURL;
         } catch (_) { /* keep original image if removal fails */ }
       }, { once: true });
       img.addEventListener('error', () => URL.revokeObjectURL(objectURL), { once: true });
     } catch (_) {/* network blocked — keep placeholder */}
   }
 
-  widget.addEventListener('click', () => {
-    showToast('(＾▽＾) kawaii~');
-    loadWaifu();
-  });
+  widget.addEventListener('click', () => showToast('(＾▽＾) kawaii~'));
 
   loadWaifu();
 })();
