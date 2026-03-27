@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ArchiveOMI — File Hosting</title>
+  <style>
+    /* ── Base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0e0e12;
+      --surface:   #16161d;
+      --card:      #1c1c26;
+      --card-h:    #22222f;
+      --border:    #2c2c3e;
+      --accent:    #c084fc;
+      --accent2:   #f472b6;
+      --green:     #4ade80;
+      --red:       #f87171;
+      --text:      #e2e2f0;
+      --muted:     #6b7280;
+      --radius:    10px;
+    }
+
+    html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9px; }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; gap: 1rem; height: 58px;
+      position: sticky; top: 0; z-index: 20;
+    }
+    .logo {
+      font-size: 1.35rem; font-weight: 800; letter-spacing: -.5px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .logo span { font-weight: 400; opacity: .7; }
+    header nav { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+    #bucket-badge {
+      font-size: .72rem; color: var(--muted); background: var(--card);
+      border: 1px solid var(--border); border-radius: 6px; padding: .2rem .6rem;
+    }
+
+    /* ── Main ─────────────────────────────────────────────── */
+    main { max-width: 980px; margin: 2.5rem auto; padding: 0 1.25rem; }
+
+    /* ── Drop zone ────────────────────────────────────────── */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 2.8rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    #drop-zone.drag-over { border-color: var(--accent); background: #1a1028; }
+    #drop-zone .dz-icon { font-size: 2.6rem; margin-bottom: .6rem; display: block; }
+    #drop-zone h2 { font-size: 1.1rem; margin-bottom: .3rem; }
+    #drop-zone p  { color: var(--muted); font-size: .82rem; }
+    #file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+    .btn {
+      display: inline-block; padding: .5rem 1.3rem;
+      border-radius: 8px; border: none; cursor: pointer;
+      font-size: .82rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff;
+      transition: opacity .18s, transform .1s; text-decoration: none;
+    }
+    .btn:hover { opacity: .85; } .btn:active { transform: scale(.97); }
+    .btn-sm { padding: .35rem .9rem; font-size: .75rem; }
+    .btn-ghost {
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+    }
+    #choose-btn { pointer-events: none; margin-top: 1rem; }
+
+    /* ── Upload progress ──────────────────────────────────── */
+    #upload-bar-wrap {
+      display: none; margin-top: .9rem;
+      background: var(--card); border-radius: 6px; overflow: hidden; height: 6px;
+    }
+    #upload-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; transition: width .2s; }
+
+    /* ── Gallery ──────────────────────────────────────────── */
+    #gallery-wrap { margin-top: 2.5rem; }
+    #gallery-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    #gallery-header h3 { font-size: .82rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; flex: 1; }
+    #file-count { font-size: .75rem; color: var(--muted); }
+    #gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: .9rem; }
+
+    /* ── Cards ────────────────────────────────────────────── */
+    .file-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; cursor: pointer; position: relative;
+      transition: transform .18s, box-shadow .18s, border-color .18s;
+    }
+    .file-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(192,132,252,.15); border-color: var(--border); }
+    .file-card .thumb { width: 100%; height: 116px; object-fit: cover; display: block; background: var(--surface); }
+    .file-card .thumb-icon { width: 100%; height: 116px; display: flex; align-items: center; justify-content: center; font-size: 2.8rem; background: var(--surface); }
+    .file-card .info { padding: .55rem .7rem; }
+    .file-card .info .name { font-size: .77rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: .2rem; }
+    .file-card .info .meta { font-size: .68rem; color: var(--muted); display: flex; justify-content: space-between; }
+    .card-actions { position: absolute; top: .35rem; right: .35rem; display: flex; gap: .25rem; opacity: 0; transition: opacity .15s; }
+    .file-card:hover .card-actions { opacity: 1; }
+    .card-btn {
+      background: rgba(0,0,0,.6); color: #fff; border: none; border-radius: 5px;
+      padding: .28rem .5rem; font-size: .68rem; cursor: pointer; backdrop-filter: blur(4px);
+      transition: background .15s;
+    }
+    .card-btn:hover { background: var(--accent); }
+    .card-btn.del:hover { background: var(--red); }
+
+    /* ── Empty state ──────────────────────────────────────── */
+    #empty { text-align: center; color: var(--muted); padding: 3rem 0; font-size: .88rem; grid-column: 1/-1; }
+    #empty .ei { font-size: 2.5rem; display: block; margin-bottom: .6rem; }
+
+    /* ── Modal ────────────────────────────────────────────── */
+    #modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 100; align-items: center; justify-content: center; }
+    #modal-overlay.open { display: flex; }
+    #modal-box { background: var(--card); border: 1px solid var(--border); border-radius: 14px; max-width: 90vw; max-height: 92vh; overflow: auto; padding: 1.4rem; position: relative; min-width: 320px; }
+    #modal-close { position: absolute; top: .7rem; right: .8rem; background: none; border: none; font-size: 1.3rem; color: var(--muted); cursor: pointer; }
+    #modal-close:hover { color: var(--text); }
+    #modal-title { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; padding-right: 2rem; word-break: break-all; }
+    #modal-content img, #modal-content video { display: block; max-width: 100%; max-height: 62vh; border-radius: 8px; }
+    #modal-content audio { display: block; width: 100%; margin-top: .5rem; }
+    #modal-content iframe { display: block; width: 100%; height: 62vh; border: none; border-radius: 8px; }
+    #modal-content pre { background: var(--bg); border-radius: 8px; padding: 1rem; overflow: auto; max-height: 56vh; font-size: .76rem; font-family: 'Cascadia Code','Fira Code',monospace; white-space: pre-wrap; word-break: break-word; }
+    .no-preview { text-align: center; padding: 2.5rem 0; color: var(--muted); }
+    .no-preview span { font-size: 3.5rem; display: block; margin-bottom: .6rem; }
+    #modal-actions { display: flex; gap: .65rem; margin-top: 1rem; flex-wrap: wrap; }
+    #modal-url { font-size: .72rem; color: var(--muted); margin-top: .6rem; word-break: break-all; background: var(--bg); padding: .4rem .6rem; border-radius: 6px; }
+
+    /* ── Toast ────────────────────────────────────────────── */
+    #toast { position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(16px); background: var(--accent); color: #fff; padding: .5rem 1.3rem; border-radius: 100px; font-size: .82rem; font-weight: 700; pointer-events: none; opacity: 0; transition: opacity .22s, transform .22s; z-index: 300; }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Anime girl widget ────────────────────────────────── */
+    #waifu-widget {
+      position: fixed; bottom: 1.2rem; right: 1.4rem; z-index: 50;
+      width: 88px; height: 88px; cursor: pointer;
+    }
+    #waifu-widget img {
+      width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
+      border: 2.5px solid var(--accent);
+      box-shadow: 0 0 18px rgba(192,132,252,.55), 0 0 36px rgba(192,132,252,.2);
+      animation: spin-girl 9s linear infinite;
+      display: block;
+    }
+    #waifu-widget .placeholder {
+      width: 100%; height: 100%; border-radius: 50%;
+      background: var(--card); border: 2.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center; font-size: 2rem;
+      animation: spin-girl 9s linear infinite;
+    }
+    @keyframes spin-girl {
+      0%   { transform: rotateY(0deg); }
+      100% { transform: rotateY(360deg); }
+    }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    footer { text-align: center; color: var(--muted); font-size: .75rem; padding: 3rem 1rem 6rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">ArchiveOMI <span>/ files</span></span>
+  <nav>
+    <span id="bucket-badge">📦 loading…</span>
+  </nav>
+</header>
+
+<main>
+  <!-- Upload zone -->
+  <div id="drop-zone">
+    <span class="dz-icon">📂</span>
+    <h2>Drop files here to upload</h2>
+    <p>or click anywhere in this box to browse</p>
+    <span class="btn" id="choose-btn">Choose files</span>
+    <input type="file" id="file-input" multiple aria-label="Choose files to upload" />
+    <div id="upload-bar-wrap"><div id="upload-bar"></div></div>
+  </div>
+
+  <!-- Gallery -->
+  <div id="gallery-wrap">
+    <div id="gallery-header">
+      <h3>Uploaded files</h3>
+      <span id="file-count"></span>
+      <button class="btn btn-ghost btn-sm" id="refresh-btn" title="Refresh">↺ Refresh</button>
+    </div>
+    <div id="gallery">
+      <div id="empty"><span class="ei">🗂️</span>Loading files…</div>
+    </div>
+  </div>
+</main>
+
+<!-- Modal -->
+<div id="modal-overlay" role="dialog" aria-modal="true">
+  <div id="modal-box">
+    <button id="modal-close" title="Close (Esc)">✕</button>
+    <div id="modal-title"></div>
+    <div id="modal-content"></div>
+    <div id="modal-url"></div>
+    <div id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- Rotating anime girl (waifu.pics) -->
+<div id="waifu-widget" title="(＾▽＾) kawaii~">
+  <div class="placeholder">🌸</div>
+</div>
+
+<footer>
+  ArchiveOMI &mdash; powered by <a href="https://cloud.google.com/storage" target="_blank" rel="noopener">Google Cloud Storage</a>
+  &hearts; waifu by <a href="https://waifu.pics" target="_blank" rel="noopener">waifu.pics</a>
+</footer>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   ArchiveOMI client — talks to /api/* Express backend
+───────────────────────────────────────────────────────────────*/
+
+const $  = id => document.getElementById(id);
+const dz = $('drop-zone'), fi = $('file-input'), gallery = $('gallery'),
+      overlay = $('modal-overlay'), mTitle = $('modal-title'),
+      mContent = $('modal-content'), mActions = $('modal-actions'),
+      mUrl = $('modal-url'), mClose = $('modal-close'),
+      toast = $('toast'), uploadBar = $('upload-bar'),
+      uploadBarWrap = $('upload-bar-wrap'), fileCount = $('file-count');
+
+let toastTimer;
+
+/* ── Helpers ───────────────────────────────────────────────── */
+function fmt(b) {
+  if (!b || b === 0) return '—';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+function icon(type) {
+  if (!type) return '📎';
+  if (type.startsWith('image/'))     return '🖼️';
+  if (type.startsWith('video/'))     return '🎬';
+  if (type.startsWith('audio/'))     return '🎵';
+  if (type === 'application/pdf')    return '📄';
+  if (type.startsWith('text/'))      return '📝';
+  if (type.match(/zip|tar|gz|rar|7z|archive/)) return '🗜️';
+  return '📎';
+}
+function isTextType(type, name) {
+  if (type && type.startsWith('text/')) return true;
+  const ext = (name || '').split('.').pop().toLowerCase();
+  return ['txt','md','json','js','ts','mjs','css','html','htm','xml','csv',
+          'py','rb','go','java','c','cpp','h','rs','sh','yaml','yml',
+          'toml','ini','conf','log'].includes(ext);
+}
+
+/* ── Fetch file list ───────────────────────────────────────── */
+async function loadFiles() {
+  try {
+    const r = await fetch('/api/files');
+    if (!r.ok) throw new Error(await r.text());
+    const files = await r.json();
+    renderGallery(files);
+  } catch (err) {
+    gallery.innerHTML = `<div id="empty"><span class="ei">⚠️</span>Could not load files:<br><small>${err.message}</small></div>`;
+  }
+}
+
+/* ── Render gallery ────────────────────────────────────────── */
+function renderGallery(files) {
+  gallery.innerHTML = '';
+  fileCount.textContent = files.length ? `${files.length} file${files.length !== 1 ? 's' : ''}` : '';
+
+  if (!files.length) {
+    const e = document.createElement('div');
+    e.id = 'empty';
+    e.innerHTML = '<span class="ei">🗂️</span>No files yet. Upload something!';
+    gallery.appendChild(e);
+    return;
+  }
+
+  files.forEach(f => {
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.title = f.name;
+
+    if (f.type && f.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.src = f.url;
+      img.alt = f.name;
+      img.loading = 'lazy';
+      card.appendChild(img);
+    } else {
+      const ic = document.createElement('div');
+      ic.className = 'thumb-icon';
+      ic.textContent = icon(f.type);
+      card.appendChild(ic);
+    }
+
+    const date = f.timeCreated ? new Date(f.timeCreated).toLocaleDateString() : '';
+    const info = document.createElement('div');
+    info.className = 'info';
+    info.innerHTML = `<div class="name">${f.name}</div>
+      <div class="meta"><span>${fmt(f.size)}</span><span>${date}</span></div>`;
+    card.appendChild(info);
+
+    // Actions
+    const acts = document.createElement('div');
+    acts.className = 'card-actions';
+
+    const cpBtn = document.createElement('button');
+    cpBtn.className = 'card-btn';
+    cpBtn.textContent = '🔗';
+    cpBtn.title = 'Copy link';
+    cpBtn.addEventListener('click', e => { e.stopPropagation(); copyLink(f); });
+    acts.appendChild(cpBtn);
+
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'card-btn';
+    dlBtn.textContent = '⬇';
+    dlBtn.title = 'Download';
+    dlBtn.addEventListener('click', e => { e.stopPropagation(); triggerDownload(f); });
+    acts.appendChild(dlBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'card-btn del';
+    delBtn.textContent = '✕';
+    delBtn.title = 'Delete';
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteFile(f, card); });
+    acts.appendChild(delBtn);
+
+    card.appendChild(acts);
+    card.addEventListener('click', () => openModal(f));
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openModal(f); });
+
+    gallery.appendChild(card);
+  });
+}
+
+/* ── Upload ────────────────────────────────────────────────── */
+async function handleFiles(fileList) {
+  if (!fileList.length) return;
+  const fd = new FormData();
+  for (const f of fileList) fd.append('files', f);
+
+  uploadBarWrap.style.display = 'block';
+  uploadBar.style.width = '10%';
+
+  try {
+    // Fake progress animation
+    let pct = 10;
+    const tick = setInterval(() => { pct = Math.min(pct + 8, 88); uploadBar.style.width = pct + '%'; }, 250);
+
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    clearInterval(tick);
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ error: r.statusText }));
+      throw new Error(err.error || r.statusText);
+    }
+    const results = await r.json();
+    uploadBar.style.width = '100%';
+    setTimeout(() => { uploadBarWrap.style.display = 'none'; uploadBar.style.width = '0%'; }, 600);
+    showToast(`✅ ${results.length} file${results.length !== 1 ? 's' : ''} uploaded!`);
+    await loadFiles();
+  } catch (err) {
+    uploadBarWrap.style.display = 'none';
+    showToast('❌ Upload failed: ' + err.message);
+  }
+
+  fi.value = '';
+}
+
+fi.addEventListener('change', () => handleFiles(fi.files));
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+
+$('refresh-btn').addEventListener('click', loadFiles);
+
+/* ── Delete ────────────────────────────────────────────────── */
+async function deleteFile(f, card) {
+  if (!confirm(`Delete "${f.name}"?`)) return;
+  try {
+    const r = await fetch(`/api/files/${encodeURIComponent(f.name)}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    card.remove();
+    showToast('🗑️ Deleted');
+    // re-render count
+    const remaining = gallery.querySelectorAll('.file-card').length;
+    fileCount.textContent = remaining ? `${remaining} file${remaining !== 1 ? 's' : ''}` : '';
+    if (!remaining) {
+      const e = document.createElement('div'); e.id = 'empty';
+      e.innerHTML = '<span class="ei">🗂️</span>No files yet. Upload something!';
+      gallery.appendChild(e);
+    }
+  } catch (err) { showToast('❌ Delete failed: ' + err.message); }
+}
+
+/* ── Helpers: copy / download ──────────────────────────────── */
+function copyLink(f) {
+  const url = location.origin + f.url;
+  navigator.clipboard.writeText(url).catch(() => {
+    // Legacy fallback for browsers without Clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+  showToast('🔗 Link copied!');
+}
+function triggerDownload(f) {
+  const a = document.createElement('a');
+  a.href = f.url + '?dl=1'; a.download = f.name; a.click();
+}
+
+/* ── Modal ─────────────────────────────────────────────────── */
+function openModal(f) {
+  mTitle.textContent = f.name;
+  mContent.innerHTML = '';
+  mActions.innerHTML = '';
+  mUrl.textContent = location.origin + f.url;
+
+  const type = f.type || '';
+
+  if (type.startsWith('image/')) {
+    const img = document.createElement('img');
+    img.src = f.url; img.alt = f.name; mContent.appendChild(img);
+  } else if (type.startsWith('video/')) {
+    const v = document.createElement('video');
+    v.src = f.url; v.controls = true; mContent.appendChild(v);
+  } else if (type.startsWith('audio/')) {
+    const ic = document.createElement('div');
+    ic.style.cssText = 'text-align:center;font-size:3.5rem;padding:1rem 0';
+    ic.textContent = '🎵'; mContent.appendChild(ic);
+    const a = document.createElement('audio');
+    a.src = f.url; a.controls = true; mContent.appendChild(a);
+  } else if (type === 'application/pdf') {
+    const fr = document.createElement('iframe');
+    fr.src = f.url; fr.title = f.name; mContent.appendChild(fr);
+  } else if (isTextType(type, f.name)) {
+    fetch(f.url).then(r => r.text()).then(txt => {
+      const pre = document.createElement('pre');
+      pre.textContent = txt; mContent.appendChild(pre);
+    }).catch(() => { mContent.innerHTML = '<div class="no-preview"><span>⚠️</span>Could not load text</div>'; });
+  } else {
+    mContent.innerHTML = `<div class="no-preview"><span>${icon(type)}</span>No preview available</div>`;
+  }
+
+  // Download button
+  const dl = document.createElement('a');
+  dl.href = f.url + '?dl=1'; dl.download = f.name;
+  dl.className = 'btn btn-sm'; dl.textContent = '⬇ Download'; mActions.appendChild(dl);
+
+  // Copy link button
+  const cp = document.createElement('button');
+  cp.className = 'btn btn-ghost btn-sm'; cp.textContent = '🔗 Copy link';
+  cp.addEventListener('click', () => copyLink(f)); mActions.appendChild(cp);
+
+  // Delete button
+  const del = document.createElement('button');
+  del.className = 'btn btn-ghost btn-sm'; del.style.color = 'var(--red)'; del.textContent = '🗑 Delete';
+  del.addEventListener('click', async () => {
+    closeModal();
+    const card = [...gallery.querySelectorAll('.file-card')].find(c => c.title === f.name);
+    await deleteFile(f, card || document.createElement('div'));
+  }); mActions.appendChild(del);
+
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+  mContent.querySelectorAll('video,audio').forEach(m => m.pause());
+}
+mClose.addEventListener('click', closeModal);
+overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ── Waifu widget (real anime girl from waifu.pics) ────────── */
+(async function loadWaifu() {
+  const widget = $('waifu-widget');
+  try {
+    const res = await fetch('https://api.waifu.pics/sfw/waifu');
+    const { url } = await res.json();
+    if (!url) return;
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = 'anime waifu';
+    img.addEventListener('load', () => {
+      widget.innerHTML = '';
+      widget.appendChild(img);
+    });
+    img.addEventListener('error', () => {/* keep placeholder */});
+  } catch (_) {/* network blocked — keep placeholder */}
+
+  widget.addEventListener('click', () => {
+    showToast('(＾▽＾) kawaii~');
+    loadWaifu();   // refresh waifu on click
+  });
+})();
+
+/* ── Bucket info badge ─────────────────────────────────────── */
+(async function checkBucket() {
+  try {
+    const r = await fetch('/api/files');
+    if (r.ok) {
+      const files = await r.json();
+      $('bucket-badge').textContent = `📦 ${files.length} file${files.length !== 1 ? 's' : ''}`;
+    }
+  } catch(_) {}
+})();
+
+/* ── Init ──────────────────────────────────────────────────── */
+loadFiles();
+</script>
+</body>
+</html>
