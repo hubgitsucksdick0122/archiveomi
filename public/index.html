@@ -423,13 +423,20 @@ async function deleteFile(f, card) {
 /* ── Helpers: copy / download ──────────────────────────────── */
 function copyLink(f) {
   const url = location.origin + f.url;
-  navigator.clipboard.writeText(url).catch(() => {
-    // Legacy fallback for browsers without Clipboard API
+  const fallback = () => {
     const ta = document.createElement('textarea');
     ta.value = url; document.body.appendChild(ta); ta.select();
-    document.execCommand('copy'); document.body.removeChild(ta);
-  });
-  showToast('🔗 Link copied!');
+    const ok = document.execCommand('copy'); document.body.removeChild(ta);
+    if (ok) showToast('🔗 Link copied!');
+    else showToast('❌ Copy failed');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url)
+      .then(() => showToast('🔗 Link copied!'))
+      .catch(fallback);
+  } else {
+    fallback();
+  }
 }
 function triggerDownload(f) {
   const a = document.createElement('a');
