@@ -282,7 +282,9 @@ async function loadFiles() {
 /* ── Render gallery ────────────────────────────────────────── */
 function renderGallery(files) {
   gallery.innerHTML = '';
-  fileCount.textContent = files.length ? `${files.length} file${files.length !== 1 ? 's' : ''}` : '';
+  const countLabel = files.length ? `${files.length} file${files.length !== 1 ? 's' : ''}` : '';
+  fileCount.textContent = countLabel;
+  $('bucket-badge').textContent = files.length ? `📦 ${countLabel}` : '📦 0 files';
 
   if (!files.length) {
     const e = document.createElement('div');
@@ -405,9 +407,11 @@ async function deleteFile(f, card) {
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     card.remove();
     showToast('🗑️ Deleted');
-    // re-render count
+    // re-render count and badge
     const remaining = gallery.querySelectorAll('.file-card').length;
-    fileCount.textContent = remaining ? `${remaining} file${remaining !== 1 ? 's' : ''}` : '';
+    const countLabel = remaining ? `${remaining} file${remaining !== 1 ? 's' : ''}` : '';
+    fileCount.textContent = countLabel;
+    $('bucket-badge').textContent = remaining ? `📦 ${countLabel}` : '📦 0 files';
     if (!remaining) {
       const e = document.createElement('div'); e.id = 'empty';
       e.innerHTML = '<span class="ei">🗂️</span>No files yet. Upload something!';
@@ -527,17 +531,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
   });
 
   loadWaifu();
-})();
-
-/* ── Bucket info badge ─────────────────────────────────────── */
-(async function checkBucket() {
-  try {
-    const r = await fetch('/api/files');
-    if (r.ok) {
-      const files = await r.json();
-      $('bucket-badge').textContent = `📦 ${files.length} file${files.length !== 1 ? 's' : ''}`;
-    }
-  } catch(_) {}
 })();
 
 /* ── Init ──────────────────────────────────────────────────── */
