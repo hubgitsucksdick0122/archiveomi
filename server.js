@@ -1,6 +1,7 @@
 'use strict';
 
 const path    = require('path');
+const { Readable } = require('node:stream');
 const express = require('express');
 const multer  = require('multer');
 const { Storage } = require('@google-cloud/storage');
@@ -145,7 +146,7 @@ app.get('/api/waifu', async (_req, res) => {
 
     res.setHeader('Content-Type', imgRes.headers.get('content-type') || 'image/jpeg');
     res.setHeader('Cache-Control', 'no-store');
-    imgRes.body.pipe(res);
+    Readable.fromWeb(imgRes.body).pipe(res);
   } catch (err) {
     console.error('waifu proxy error', err.message);
     res.status(500).json({ error: err.message });
